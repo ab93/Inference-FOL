@@ -1,96 +1,67 @@
 
+__author__ = 'avik'
+
 import sys
 
-################### PrintProof begin ###########################################
-
-#from FolBC import *
-
-def complete_substitute(theta, clause):
-
-    for i in range(0, len(theta.keys())):
-        clause = substitute(theta, clause)
-    return clause
-
-
-def print_parent(theta, clause):
-
-    if clause not in parent_clauses:
-        print 'We know', complete_substitute(theta, clause), '(given)'
-        return
-
-    parents, law_used, clause_used = parent_clauses[clause]
-    for parent in parents:
-        print_parent(theta, parent)
-    print 'which leads to', complete_substitute(theta, clause),
-
-    if clause_used is not None:
-        print '(' + law_used, 'on', str(clause_used) + ')'
-    else:
-        print '(' + law_used + ')'
-
-
-####################### PrintProof ends ########################################
-
-####################### KBUtils begin ##########################################
-
-#import FolBC
-
 OPERATORS = ['^', '=>', '~', 'v']
+VARCOUNT = 0
+GOALS = set()
+
 
 class KnowledgeBase:
-
     def __init__(self, initial_clauses = []):
         self.clauses = {}
         for clause in initial_clauses:
             self.tell(clause)
 
     def tell(self, clause):
-        self.predicate_index(clause, clause)
+        self.setPredicateIndex(clause, clause)
 
     def ask(self, query):
-        return fol_bc_ask(self, query)
+        return FOL_BC_ask(self, query)
 
-    def predicate_index(self, main_clause, inside_clause):
-
-        if is_predicate(inside_clause):
-            if inside_clause.op in self.clauses:
-                if main_clause not in self.clauses[inside_clause.op]:
-                    self.clauses[inside_clause.op].append(main_clause)
+    def setPredicateIndex(self, mainClause, innerClause):
+        if isPredicate(innerClause):
+            if innerClause.op in self.clauses:
+                if mainClause not in self.clauses[innerClause.op]:
+                    self.clauses[innerClause.op].append(mainClause)
             else:
-                self.clauses[inside_clause.op] = [main_clause]
+                self.clauses[innerClause.op] = [mainClause]
 
-        elif inside_clause.op == '~':
-            self.predicate_index(main_clause, inside_clause.args[0])
+        elif innerClause.op == '~':
+            self.setPredicateIndex(mainClause, innerClause.args[0])
 
         else:
-            self.predicate_index(main_clause, inside_clause.args[0])
-            self.predicate_index(main_clause, inside_clause.args[1])
+            self.setPredicateIndex(mainClause, innerClause.args[0])
+            self.setPredicateIndex(mainClause, innerClause.args[1])
 
-    def fetch_rules_for_goal(self, goal):
+    def fetchRulesForGoal(self, goal):
         try:
-            predicate = self.retrieve_predicate(goal)
+            predicate = self.getPredicate(goal)
             if predicate in self.clauses:
                 return self.clauses[predicate]
 
         except IndexError:
-            all_clauses = []
+            allClauses = []
             for key in self.clauses.keys():
-                all_clauses += self.clauses[key]
-            return list(set(all_clauses))
+                allClauses += self.clauses[key]
+            return list(set(allClauses))
 
-    def retrieve_predicate(self, goal):
-        if is_predicate(goal):
+    def getPredicate(self, goal):
+        if isPredicate(goal):
             return goal.op
         else:
-            return self.retrieve_predicate(goal.args[0])
+            return self.getPredicate(goal.args[0])
+
+    def display(self):
+        for key in self.clauses.keys():
+            print key,':',self.clauses[key]
 
 
 class Clause:
-
-    def __init__(self, op, args = [], parents = None):
+    def __init__(self, op, args = []):
         self.op = op
-        self.parents = parents
-        self.args = map(convert_to_clause, args)
+        self.args = map(convertToClause, args)
 
     def __hash__(self):
         return hash(self.op) ^ hash(tuple(self.args))
@@ -112,70 +83,68 @@ class Clause:
                 return '~' + '(' + str(self.args[0]) + ')'
 
         else:
-            str_repn = ''
+            stringRepr = ''
             if self.args[0].op in OPERATORS:
-                str_repn = '(' + str(self.args[0]) + ')'
+                stringRepr = '(' + str(self.args[0]) + ')'
             else:
-                str_repn = str(self.args[0])
-            str_repn += ' ' + self.op + ' '
+                stringRepr = str(self.args[0])
+            stringRepr += ' ' + self.op + ' '
 
             if self.args[1].op in OPERATORS:
-                str_repn += '(' + str(self.args[1]) + ')'
+                stringRepr += '(' + str(self.args[1]) + ')'
             else:
-                str_repn += str(self.args[1])
-            return str_repn
+                stringRepr += str(self.args[1])
+            return stringRepr
 
     def __eq__(self, other):
-        return isinstance(other, Clause) and self.op == other.op and \
-        self.args == other.args
+        return isinstance(other, Clause) and self.op == other.op and self.args == other.args
 
     def display(self):
         print("op:",self.op)
         print("args:",self.args)
-        print("par:",self.parents)
 
 
-def convert_to_clause(item):
+def convertToClause(item):
     if isinstance(item, Clause):
         return item
 
     if '=>' in item:
-        implication_posn = item.index('=>')
-        lhs = item[:implication_posn]
-        rhs = item[implication_posn + 1:]
-        impl_clause = Clause('=>', [lhs, rhs])
-        return impl_clause
+        pos = item.index('=>')
+        lhs = item[:pos]
+        rhs = item[pos + 1:]
+        clause = Clause('=>', [lhs, rhs])
+        return clause
 
     elif 'v' in item:
-        or_posn = item.index('v')
-        first_disjunct = item[:or_posn]
-        second_disjunct = item[or_posn + 1:]
-        or_clause = Clause('v', [first_disjunct, second_disjunct])
-        return or_clause
+        pos = item.index('v')
+        first = item[:pos]
+        second = item[pos + 1:]
+        clause = Clause('v', [first, second])
+        return clause
 
     elif '^' in item:
-        and_posn = item.index('^')
-        first_conjunct = item[:and_posn]
-        second_conjunct = item[and_posn + 1:]
-        and_clause = Clause('^', [first_conjunct, second_conjunct])
-        return and_clause
+        pos = item.index('^')
+        first = item[:pos]
+        second = item[pos + 1:]
+        clause = Clause('^', [first, second])
+        return clause
 
     elif '~' in item:
-        not_posn = item.index('~')
-        not_clause = Clause('~', [item[not_posn + 1:]])
-        return not_clause
+        pos = item.index('~')
+        clause = Clause('~', [item[pos + 1:]])
+        return clause
 
     elif isinstance(item, str):
         return Clause(item)
-    if len(item) == 1:
-        return convert_to_clause(item[0])
 
-    simple_clause = Clause(item[0], item[1:][0])
-    return simple_clause
+    if len(item) == 1:
+        return convertToClause(item[0])
+
+    simpleClause = Clause(item[0], item[1:][0])
+    return simpleClause
 
 
 def negate(clause):
-
     if clause.op not in OPERATORS:
         if clause.args == []:
             return Clause('~', [clause.op])
@@ -198,61 +167,52 @@ def negate(clause):
         return clause.args[0]
 
 
-def break_nesting(clause):
-
+def breakNesting(clause):
     if clause.op == '=>':
-        negated_precedent = negate(clause.args[0])
-        broken_negated_precedent = break_nesting(negated_precedent)
-        return Clause('v', [broken_negated_precedent, clause.args[1]])
+        negClause = negate(clause.args[0])
+        expanded = breakNesting(negClause)
+        return Clause('v', [expanded, clause.args[1]])
 
     elif clause.op == '~':
         if clause.args[0].op in OPERATORS:
-            negated_not_clause = negate(clause.args[0])
-            broken_negated_not_clause = break_nesting(negated_not_clause)
-            return broken_negated_not_clause
+            negClause = negate(clause.args[0])
+            expanded = breakNesting(negClause)
+            return expanded
         else:
             return clause
 
     elif clause.op in ['^', 'v']:
-        broken_first_arg = break_nesting(clause.args[0])
-        broken_second_arg = break_nesting(clause.args[1])
-        return Clause(clause.op, [broken_first_arg, broken_second_arg])
+        arg1 = breakNesting(clause.args[0])
+        arg2 = breakNesting(clause.args[1])
+        return Clause(clause.op, [arg1, arg2])
 
     else:
         return clause
 
 
-def is_predicate(clause):
-
+def isPredicate(clause):
     if clause.op[0] != '~':
         return clause.op not in OPERATORS and clause.op[0].isupper()
     else:
         return clause.op not in OPERATORS and clause.op[1].isupper()
 
 
-################ KBUtil ends ###################################################
-
-################ Unifier ends ##################################################
-
-#from KBUtil import *
-
-def is_variable(item):
+def isVariable(item):
     return isinstance(item, Clause) and item.op.islower() and item.args == []
 
 
 def unify(x, y, subst = {}):
-
     if subst is None:
         return None
 
     elif x == y:
         return subst
 
-    elif is_variable(x):
-        return unify_vars(x, y, subst)
+    elif isVariable(x):
+        return unifyVars(x, y, subst)
 
-    elif is_variable(y):
-        return unify_vars(y, x, subst)
+    elif isVariable(y):
+        return unifyVars(y, x, subst)
 
     elif isinstance(x, Clause) and isinstance(y, Clause):
         return unify(x.args, y.args, unify(x.op, y.op, subst))
@@ -264,50 +224,41 @@ def unify(x, y, subst = {}):
         return None
 
 
-def unify_vars(var, x, subst):
+def unifyVars(var, x, subst):
     if var in subst:
         return unify(subst[var], x, subst)
 
-    subst_copy = subst.copy()
-    subst_copy[var] = x
-    return subst_copy
+    newSubst = subst.copy()
+    newSubst[var] = x
+    return newSubst
 
-############ Unifier ends ######################################################
 
-############ FolBC starts ######################################################
 
-#from Unifier import *
+def standardizeVars(clause, stdVars = None):
+    global VARCOUNT
 
-VARIABLE_COUNTER = 0
-parent_clauses = {}
-GOALS = set()
-TARGET = Clause('')
-
-def standardize_vbls(clause, already_stdized = None):
-    global VARIABLE_COUNTER
-
-    if already_stdized is None:
-        already_stdized = {}
+    if stdVars is None:
+        stdVars = {}
 
     if not isinstance(clause, Clause):
         return clause
 
-    if is_variable(clause):
-        if clause in already_stdized:
-            return already_stdized[clause]
+    if isVariable(clause):
+        if clause in stdVars:
+            return stdVars[clause]
         else:
-            new_vbl = Clause('v_' + str(VARIABLE_COUNTER))
-            VARIABLE_COUNTER += 1
-            already_stdized[clause] = new_vbl
-            return new_vbl
+            newVar = Clause('v_' + str(VARCOUNT))
+            VARCOUNT += 1
+            stdVars[clause] = newVar
+            return newVar
     else:
-        return Clause(clause.op, (standardize_vbls(arg, already_stdized) for arg in clause.args))
+        return Clause(clause.op, (standardizeVars(arg, stdVars) for arg in clause.args))
 
 
 def substitute(theta, clause):
     assert isinstance(clause, Clause)
 
-    if is_variable(clause):
+    if isVariable(clause):
         if clause in theta:
             return theta[clause]
         else:
@@ -316,14 +267,14 @@ def substitute(theta, clause):
         return Clause(clause.op, (substitute(theta, arg) for arg in clause.args))
 
 
-def convert_to_implication(clause):
+def changeToImplication(clause):
     if clause.op == '=>':
-        return break_nesting(clause.args[0]), clause.args[1]
+        return breakNesting(clause.args[0]), clause.args[1]
     else:
         return [], clause
 
 
-def fol_bc_and(kb, goals, theta):
+def FOL_BC_and(KB, goals, theta):
     if theta is None:
         pass
 
@@ -332,298 +283,120 @@ def fol_bc_and(kb, goals, theta):
 
     else:
         if goals.op == '^':
-            first_arg = goals.args[0]
-            second_arg = goals.args[1]
+            first = goals.args[0]
+            rest = goals.args[1]
 
-            if first_arg.op == '^':
-                while not is_predicate(first_arg):
-                    second_arg = Clause('^', [first_arg.args[1], second_arg])
-                    first_arg = first_arg.args[0]
+            if first.op == '^':
+                while not isPredicate(first):
+                    rest = Clause('^', [first.args[1], rest])
+                    first = first.args[0]
         else:
-            first_arg = goals
-            second_arg = []
+            first = goals
+            rest = []
 
-        for theta1 in fol_bc_or(kb, substitute(theta, first_arg), theta):
-            if isinstance(second_arg, Clause):
-                parent_clauses[substitute(theta, goals)] = ([substitute(theta, first_arg), substitute(theta1, second_arg)], 'Rule of conjunction', None)
-
-            for theta2 in fol_bc_and(kb, second_arg, theta1):
+        for theta1 in FOL_BC_or(KB, substitute(theta, first), theta):
+            for theta2 in FOL_BC_and(KB, rest, theta1):
                 yield theta2
 
 
-def fol_bc_or(kb, goal, theta):
-
-    print "in fol_bc_or..."
-
+def FOL_BC_or(KB, goal, theta):
     if goal in GOALS:
-        print "GOTCHAAA!!!!!",goal,'\n'
         return
 
-    print "goal:",goal
     GOALS.add(goal)
-    print "GOALS:",GOALS
-    possible_rules = kb.fetch_rules_for_goal(goal)
-    print "possible rules:",possible_rules
-    for rule in possible_rules:
-        stdized_rule = standardize_vbls(rule)
-        lhs, rhs = convert_to_implication(stdized_rule)
 
-        #print lhs,rhs
-        #raw_input()
+    for rule in KB.fetchRulesForGoal(goal):
+        stdRule = standardizeVars(rule)
+        lhs, rhs = changeToImplication(stdRule)
+        #print "lhs,rhs,goal:",lhs,rhs,goal,"\n"
 
-        rhs_unify_try = unify(rhs, goal, theta)
-
-        print "rhs_unify_try,rhs,goal:",rhs_unify_try,',',rhs,',',goal
-        raw_input()
-
-        if rhs_unify_try is not None:
-
-            if lhs != []:
-
-                if lhs.op == '^':
-                    substituted_lhs_args = [substitute(rhs_unify_try, arg) for arg in lhs.args]
-                    parent_clauses[substitute(rhs_unify_try, lhs)] = (substituted_lhs_args, 'Rule of conjunction', None)
-
-                parent_clauses[goal] = ([substitute(rhs_unify_try, stdized_rule)], 'Modus Ponens', None)
-                parent_clauses[substitute(rhs_unify_try, stdized_rule)] = ([substitute(rhs_unify_try, lhs)], 'Rule of universal instantiation', rule)
-                for keys in parent_clauses.keys():
-                    print keys,':',parent_clauses[keys]
-                print '\n'
-                #raw_input()
-
-        for theta1 in fol_bc_and(kb, lhs, rhs_unify_try):
+        for theta1 in FOL_BC_and(KB, lhs, unify(rhs, goal, theta)):
             yield theta1
 
 
-def fol_bc_ask(kb, query):
-    #print query
-    #global TARGET,GOALS
-    #GOALS = []
-    #TARGET = query
-
-    return fol_bc_or(kb, query, {})
-
-########## FolBC ends ##########################################################
-
-########## Parse starts ########################################################
-
-def tokenize(string):
-
-    string = '(' + string + ')'
-
-    string = string.replace('(', ' ( ')
-    string = string.replace(')', ' ) ')
-    string = string.replace(',', ' ')
-
-    string = string.replace('v', ' v ')
-    string = string.replace('^', ' ^ ')
-    string = string.replace('~', ' ~ ')
-    string = string.replace('=>', ' => ')
+def FOL_BC_ask(KB, query):
+    return FOL_BC_or(KB, query, {})
 
 
-    return string.split()
+def parse(sentence):
+    sentence = '(' + sentence + ')'
+    sentence = sentence.replace('(', ' ( ')
+    sentence = sentence.replace(')', ' ) ')
+    sentence = sentence.replace(',', ' ')
 
-def parse(program):
-    return read_from_tokens(tokenize(program))
+    sentence = sentence.replace('v', ' v ')
+    sentence = sentence.replace('^', ' ^ ')
+    sentence = sentence.replace('~', ' ~ ')
+    sentence = sentence.replace('=>', ' => ')
 
-def read_from_tokens(token_list):
-    first_token = token_list.pop(0)
+    tokens = sentence.split()
+    return readTokenList(tokens)
 
-    if first_token == '(':
+
+def readTokenList(List):
+    first = List.pop(0)
+
+    if first == '(':
         new_expression = []
-
-        while token_list[0] != ')':
-            new_expression.append(read_from_tokens(token_list))
-        token_list.pop(0)
+        while List[0] != ')':
+            new_expression.append(readTokenList(List))
+        List.pop(0)
         return new_expression
     else:
-        return first_token
-
-######### Parse Ends ###########################################################
-
-######### Autoprover starts ####################################################
-#from Parser import *
-#from FolBC import *
-#from PrintProof import *
-#from HelpMessage import *
-#import sys
+        return first
 
 
-def find_variables(clause):
+def printOutputFile(result):
+    with open('output.txt','a+') as outputFile:
+        outputFile.write(result + '\n')
 
-    if is_variable(clause):
-        return [clause]
-    elif is_predicate(clause):
-        return clause.args
-    elif clause.op == '~':
-        return find_variables(clause.args[0])
-    else:
-        first_arg_vbls = find_variables(clause.args[0])
-        second_arg_vbls = find_variables(clause.args[1])
-        return first_arg_vbls + second_arg_vbls
+def setOutputFile():
+    outputFile = open('output.txt','w')
+    outputFile.close()
 
 
+def main():
+    global VARCOUNT, GOALS
+    queries = []
+    rules = []
 
-x_count = 0
+    with open(sys.argv[2]) as f:
+        queryCount = int(f.readline().strip())
 
-def replace_with_variables(clause, theta = {}):
+        while queryCount > 0:
+            goal = f.next().strip()
+            queryCount -= 1
+            queries.append(goal)
 
-    global x_count
+        KBcount = int(f.next().strip())
 
-    assert isinstance(clause, Clause)
-    if is_predicate(clause):
-        theta_copy = theta.copy()
-        new_args = []
-        for arg in clause.args:
-            if not is_variable(arg):
-                new_arg_clause = Clause('x_' + str(x_count))
-                theta_copy[new_arg_clause] = arg
-                new_args.append(new_arg_clause)
-                x_count += 1
-        return Clause(clause.op, new_args), theta_copy
+        while KBcount > 0:
+            clause = f.next().strip()
+            rules.append(clause)
+            KBcount -= 1
 
+    KB = KnowledgeBase(map(convertToClause,map(parse,rules)))
+    #KB.display()
 
-#def printOutputFile(result):
-#    pass
+    setOutputFile()
 
-#def setOutputFile():
-#    pass
+    for i in range(len(queries)):
+        Q = convertToClause(parse(queries[i]))
+        GOALS.clear()
+        VARCOUNT = 0
+        flag = False
 
+        for ans in KB.ask(Q):
+            flag = True
+            break
 
-input_kb = KnowledgeBase(
-    map(convert_to_clause,map(parse,
-    ['A(x) => H(x)',
-    'D(x,y) => ~H(y)',
-    'B(x,y) ^ C(x,y) => A(x)',
-    'B(John,Alice)',
-    'B(John,Bob)',
-    'D(x,y) ^ Q(y) => C(x,y)',
-    'D(John,Alice)',
-    'Q(Bob)',
-    'D(John,Bob)',
-    'F(x) => G(x)',
-    'G(x) => H(x)',
-    'H(x) => F(x)',
-    'R(x) => H(x)',
-    'R(Tom)'
-    ])))
-
-test_kb = KnowledgeBase(
-    map(convert_to_clause,map(parse,
-    ['A(x,y) ^ B(z,w) => C(x,w)',
-    'C(y,x) => A(x,y)',
-    'C(x,y) => B(y,x)',
-    'A(EE,CS)'
-    'B(MS,PHD)'
-    ])))
-
-#kb = crime_kb
-kb = test_kb
-#kb = input_kb
-#for keys in kb.clauses.keys():
-#    print keys,':',kb.clauses[keys]
-#raw_input()
+        if flag:
+            #print "TRUE"
+            printOutputFile('TRUE')
+        else:
+            #print "FALSE"
+            printOutputFile('FALSE')
 
 
-#query = convert_to_clause(parse('F(Bob)'))
-#query = convert_to_clause(parse('G(Tom)'))
-query = convert_to_clause(parse('C(PHD,PHD)'))
-
-# to check if the statement has been proved
-proof_flag = False
-
-vbls_in_query = find_variables(query)
-#print vbls_in_query
-#print replace_with_variables(query),"\n"
-print query
-
-
-#####   #####   FOR THE INPUT FILE
-
-queries = []
-rules = []
-with open(sys.argv[2],'r+') as f:
-    queryCount = int(f.readline().strip())
-
-    while queryCount > 0:
-        goal = f.next().strip()
-        queryCount -= 1
-        queries.append(goal)
-
-    KBcount = int(f.next().strip())
-
-    while KBcount > 0:
-        clause = f.next().strip()
-        rules.append(clause)
-        KBcount -= 1
-        #print parse(clause)
-        #clause = convert_to_clause(parse(clause))
-        #KB.tell(clause)
-        #rules.append(clause)
-
-print "queries:",queries
-print "rules:",rules
-
-KB = KnowledgeBase(map(convert_to_clause,map(parse,rules)))
-
-for keys in KB.clauses.keys():
-    print keys,':',KB.clauses[keys]
-
-#Q = convert_to_clause(parse(queries[0]))
-
-for i in range(len(queries)):
-    Q = convert_to_clause(parse(queries[i]))
-    GOALS.clear()
-    parent_clauses = {}
-    VARIABLE_COUNTER = 0
-    x_count = 0
-    flag = False
-    for ans in KB.ask(Q):
-        flag = True
-        break
-
-    if flag:
-        print "TRUE"
-    else:
-        print "FALSE"
-
-    raw_input()
-
-#flag = False
-
-#for answer in KB.ask(Q):
-    #print '\n:\n'
-    #print answer
-#    print "True"
-#    flag = True
-#    break
-    #raw_input()
-    #print_parent(answer, Q)
-
-#if not flag:
-#    print "False"
-
-####
-
-"""   ### DELETE THIS LATER
-for answer in kb.ask(query):
-     #comment the below part out if you're using the program as a query-based system
-    #if all(reqd_theta[key] == answer[key] for key in reqd_theta.keys()):
-        # all keys match
-    #    print '\nProof:\n'
-    #    print_parent(answer, query)
-    #    proof_flag = True
-    #    break
-    # uncomment this and run to see all proofs obtained by the query-based system
-    print '\nProof:\n'
-    print answer
-    raw_input()
-    print_parent(answer, query)
-
-if not proof_flag:
-    print '\nSorry, your statement could not be proved.\n'
-else:
-    print ''
-"""
-
-######### Autoprover ends ##########################################################
+if __name__ == '__main__':
+    main()
